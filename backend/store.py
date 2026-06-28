@@ -32,6 +32,30 @@ def init_db():
             """
         )
         c.execute("CREATE INDEX IF NOT EXISTS personas_session_idx ON personas (session_id)")
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversations (
+                id           TEXT PRIMARY KEY,
+                session_id   TEXT,
+                persona_id   TEXT,
+                persona_name TEXT,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS conversations_session_idx ON conversations (session_id)")
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS messages (
+                id              BIGSERIAL PRIMARY KEY,
+                conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+                seq             INT NOT NULL,
+                role            TEXT NOT NULL,
+                text            TEXT NOT NULL
+            )
+            """
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS messages_conv_idx ON messages (conversation_id, seq)")
 
 
 def add_persona(name: str, instructions: str, voice_id: str, session_id: str) -> str:
@@ -71,5 +95,71 @@ def delete_persona(persona_id: str, session_id: str) -> bool:
         cur = c.execute(
             "DELETE FROM personas WHERE id = %s AND session_id = %s",
             (persona_id, session_id),
+        )
+        return cur.rowcount > 0
+
+
+# ---- Conversation transcripts (text only) ----
+
+def save_conversation(session_id: str, persona_id: str, persona_name: str, turns: list[dict]) -> str:
+    """turns: [{"role": "user"|"assistant", "text": str}, ...] in order. No-op if empty."""
+    if not turns:
+        return ""
+    conv_id = f"conv_{uuid.uuid4().hex[:10]}"
+    with _pool_().connection() as c:
+        c.execute(
+            "INSERT INTO conversations (id, session_id, persona_id, persona_name) VALUES (%s, %s, %s, %s)",
+            (conv_id, session_id, persona_id, persona_name),
+        )
+        with c.cursor() as cur:
+            cur.executemany(
+                "INSERT INTO messages (conversation_id, seq, role, text) VALUES (%s, %s, %s, %s)",
+                [(conv_id, i, t["role"], t["text"]) for i, t in enumerate(turns)],
+            )
+    return conv_id
+
+
+def list_conversations(session_id: str) -> list[dict]:
+    with _pool_().connection() as c:
+        rows = c.execute(
+            """
+            SELECT c.id, c.persona_id, c.persona_name, c.created_at, COUNT(m.id) AS turns
+            FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
+            WHERE c.session_id = %s
+            GROUP BY c.id ORDER BY c.created_at DESC
+            """,
+            (session_id,),
+        ).fetchall()
+    return [
+        {"id": r[0], "persona_id": r[1], "persona_name": r[2],
+         "created_at": r[3].isoformat(), "turns": r[4]}
+        for r in rows
+    ]
+
+
+def get_conversation(conv_id: str, session_id: str) -> dict | None:
+    with _pool_().connection() as c:
+        head = c.execute(
+            "SELECT id, persona_id, persona_name, created_at FROM conversations WHERE id = %s AND session_id = %s",
+            (conv_id, session_id),
+        ).fetchone()
+        if not head:
+            return None
+        msgs = c.execute(
+            "SELECT role, text FROM messages WHERE conversation_id = %s ORDER BY seq",
+            (conv_id,),
+        ).fetchall()
+    return {
+        "id": head[0], "persona_id": head[1], "persona_name": head[2],
+        "created_at": head[3].isoformat(),
+        "messages": [{"role": m[0], "text": m[1]} for m in msgs],
+    }
+
+
+def delete_conversation(conv_id: str, session_id: str) -> bool:
+    with _pool_().connection() as c:
+        cur = c.execute(
+            "DELETE FROM conversations WHERE id = %s AND session_id = %s",
+            (conv_id, session_id),
         )
         return cur.rowcount > 0

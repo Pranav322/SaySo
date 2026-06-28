@@ -84,6 +84,16 @@ class OmniSession:
                 if audio_b64:
                     yield ("audio", base64.b64decode(audio_b64))
 
+            elif event_type == "conversation.item.input_audio_transcription.completed":
+                text = (event.get("transcript") or "").strip()
+                if text:
+                    yield ("transcript", {"role": "user", "text": text})
+
+            elif event_type == "response.audio_transcript.done":
+                text = (event.get("transcript") or "").strip()
+                if text:
+                    yield ("transcript", {"role": "assistant", "text": text})
+
             elif event_type in self._FORWARDED_EVENTS:
                 yield ("event", event_type)
 

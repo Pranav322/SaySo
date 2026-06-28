@@ -111,6 +111,26 @@ def delete_persona(persona_id: str, x_session_id: str = Header(default="")):
     return {"deleted": persona_id}
 
 
+@app.get("/conversations")
+def list_conversations(x_session_id: str = Header(default="")):
+    return store.list_conversations(x_session_id)
+
+
+@app.get("/conversations/{conv_id}")
+def get_conversation(conv_id: str, x_session_id: str = Header(default="")):
+    conv = store.get_conversation(conv_id, x_session_id)
+    if not conv:
+        raise HTTPException(404, "Conversation not found.")
+    return conv
+
+
+@app.delete("/conversations/{conv_id}")
+def delete_conversation(conv_id: str, x_session_id: str = Header(default="")):
+    if not store.delete_conversation(conv_id, x_session_id):
+        raise HTTPException(404, "Conversation not found.")
+    return {"deleted": conv_id}
+
+
 @app.websocket("/ws/converse/{persona_id}")
 async def converse(websocket: WebSocket, persona_id: str, voice: str = "", mode: str = "ptt", sid: str = ""):
     persona = resolve_persona(persona_id)
@@ -136,6 +156,7 @@ async def converse(websocket: WebSocket, persona_id: str, voice: str = "", mode:
 
     await websocket.accept()
     manual = mode == "ptt"
+    turns: list[dict] = []  # accumulated transcript, saved on disconnect
     try:
         async with OmniSession(persona, manual=manual) as session:
             async def receive_from_browser():
@@ -161,6 +182,9 @@ async def converse(websocket: WebSocket, persona_id: str, voice: str = "", mode:
                     async for kind, payload in session.receive_events():
                         if kind == "audio":
                             await websocket.send_bytes(payload)
+                        elif kind == "transcript":
+                            turns.append(payload)  # {"role","text"} — saved at end
+                            await websocket.send_text(json.dumps({"type": "transcript", **payload}))
                         else:
                             await websocket.send_text(json.dumps({"type": "state", "event": payload}))
                 except WebSocketDisconnect:
@@ -179,3 +203,9 @@ async def converse(websocket: WebSocket, persona_id: str, voice: str = "", mode:
                 task.cancel()
     finally:
         limits.release_ws(sid)
+        # Persist the transcript (text only), scoped to this session.
+        try:
+            store.save_conversation(sid, persona_id, persona.get("name", persona_id), turns)
+        except Exception as e:  # never let saving break the socket teardown
+            import logging
+            logging.getLogger(__name__).warning("save_conversation failed: %s", e)
