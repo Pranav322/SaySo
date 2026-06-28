@@ -54,7 +54,7 @@ export function ConversationControls({ state, onStart, onStop, micError }: Props
         <div className="flex flex-col items-center gap-4">
           <p className="text-white/50">Session ended</p>
           <Link
-            href="/"
+            href="/app"
             className="rounded-full border border-white/20 px-8 py-3 text-sm text-white/70
                        transition hover:border-white/40 hover:text-white"
           >

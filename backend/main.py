@@ -1,11 +1,12 @@
 import asyncio
 import json
+import os
 import re
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import store
+from . import store, limits
 from .personas import PERSONAS
 from .voices import VOICES, VOICE_IDS
 from .enroll import enroll_voice
@@ -13,11 +14,14 @@ from .omni import OmniSession
 
 load_dotenv()
 
-app = FastAPI(title="Mirror")
+app = FastAPI(title="Sayso")
+
+# Lock to your frontend origin in prod via ALLOWED_ORIGINS (comma-separated). Default "*" for dev.
+ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",")]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -68,6 +72,9 @@ async def create_persona(
     if not x_session_id:
         raise HTTPException(400, "Missing session id.")
 
+    if not limits.allow_enrollment(x_session_id):
+        raise HTTPException(429, "Daily voice-creation limit reached. Try again tomorrow.")
+
     audio_bytes = await audio.read()
     if len(audio_bytes) < 8000:
         raise HTTPException(400, "Audio clip too short. Provide 5–60s of clear speech.")
@@ -100,54 +107,70 @@ def delete_persona(persona_id: str, x_session_id: str = Header(default="")):
 
 
 @app.websocket("/ws/converse/{persona_id}")
-async def converse(websocket: WebSocket, persona_id: str, voice: str = "", mode: str = "ptt"):
+async def converse(websocket: WebSocket, persona_id: str, voice: str = "", mode: str = "ptt", sid: str = ""):
     persona = resolve_persona(persona_id)
     if persona is None:
         await websocket.close(code=4004, reason="Unknown persona")
         return
 
+    # Privacy: a CUSTOM persona may only be used by the session that created it.
+    if persona_id not in PERSONAS:
+        owner = store.get_persona(persona_id)
+        if not owner or owner["session_id"] != sid:
+            await websocket.close(code=4003, reason="Not your persona")
+            return
+
     # Allow voice override for PRESET personas only (custom personas keep their clone).
     if voice and voice in VOICE_IDS and persona_id in PERSONAS:
         persona = {**persona, "voice": voice}
 
+    # Abuse/cost guard: cap concurrent conversations per session.
+    if not limits.acquire_ws(sid):
+        await websocket.close(code=4029, reason="Too many active conversations")
+        return
+
     await websocket.accept()
-
     manual = mode == "ptt"
-    async with OmniSession(persona, manual=manual) as session:
-        async def receive_from_browser():
-            try:
-                while True:
-                    msg = await websocket.receive()
-                    if msg.get("type") == "websocket.disconnect":
-                        break
-                    if (data := msg.get("bytes")) is not None:
-                        await session.send_audio(data)
-                    elif (text := msg.get("text")) is not None:
-                        evt = json.loads(text)
-                        kind = evt.get("type")
-                        if kind == "barge_in":
-                            await session.cancel_response()
-                        elif kind == "commit":
-                            await session.commit_and_respond()
-            except WebSocketDisconnect:
-                pass
+    try:
+        async with OmniSession(persona, manual=manual) as session:
+            async def receive_from_browser():
+                try:
+                    while True:
+                        msg = await websocket.receive()
+                        if msg.get("type") == "websocket.disconnect":
+                            break
+                        if (data := msg.get("bytes")) is not None:
+                            await session.send_audio(data)
+                        elif (text := msg.get("text")) is not None:
+                            evt = json.loads(text)
+                            kind = evt.get("type")
+                            if kind == "barge_in":
+                                await session.cancel_response()
+                            elif kind == "commit":
+                                await session.commit_and_respond()
+                except WebSocketDisconnect:
+                    pass
 
-        async def send_to_browser():
-            try:
-                async for kind, payload in session.receive_events():
-                    if kind == "audio":
-                        await websocket.send_bytes(payload)
-                    else:
-                        await websocket.send_text(json.dumps({"type": "state", "event": payload}))
-            except WebSocketDisconnect:
-                pass
+            async def send_to_browser():
+                try:
+                    async for kind, payload in session.receive_events():
+                        if kind == "audio":
+                            await websocket.send_bytes(payload)
+                        else:
+                            await websocket.send_text(json.dumps({"type": "state", "event": payload}))
+                except WebSocketDisconnect:
+                    pass
 
-        receive_task = asyncio.create_task(receive_from_browser())
-        send_task = asyncio.create_task(send_to_browser())
+            receive_task = asyncio.create_task(receive_from_browser())
+            send_task = asyncio.create_task(send_to_browser())
 
-        done, pending = await asyncio.wait(
-            [receive_task, send_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        for task in pending:
-            task.cancel()
+            # Auto-close after SESSION_MAX_SECONDS to bound API cost per conversation.
+            done, pending = await asyncio.wait(
+                [receive_task, send_task],
+                timeout=limits.SESSION_MAX_SECONDS,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+    finally:
+        limits.release_ws(sid)

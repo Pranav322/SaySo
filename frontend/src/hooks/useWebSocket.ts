@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { WS_BASE } from '@/lib/constants'
+import { getSessionId } from '@/lib/session'
 
 type WsStatus = 'connecting' | 'open' | 'closed' | 'error'
 
@@ -20,7 +21,7 @@ export function useWebSocket(
   const [status, setStatus] = useState<WsStatus>('connecting')
 
   useEffect(() => {
-    const qs = new URLSearchParams({ mode })
+    const qs = new URLSearchParams({ mode, sid: getSessionId() })
     if (voice) qs.set('voice', voice)
     const ws = new WebSocket(`${WS_BASE}/ws/converse/${personaId}?${qs}`)
     ws.binaryType = 'arraybuffer'

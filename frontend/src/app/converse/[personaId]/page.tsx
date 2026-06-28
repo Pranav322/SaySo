@@ -5,6 +5,8 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 import { useMicCapture } from '@/hooks/useMicCapture'
 import { usePlayback } from '@/hooks/usePlayback'
 import { VoicePoweredOrb, OrbState } from '@/components/ui/voice-powered-orb'
+import { VoicePicker } from '@/components/VoicePicker'
+import { AppNav } from '@/components/AppNav'
 import { API_BASE } from '@/lib/constants'
 import { getSessionId } from '@/lib/session'
 
@@ -29,10 +31,14 @@ export default function ConversePage({ params }: { params: { personaId: string }
   const holdingRef = useRef(false)
   const micLevelRef = useRef(0)
   const bargeLockRef = useRef(false)
+  // Gate: drop audio chunks belonging to a response the user interrupted.
+  // Re-opened only when a NEW response starts (response.created).
+  const acceptAudioRef = useRef(true)
 
   const { enqueue, flush, getLevel: getPlaybackLevel, stop: stopPlayback } = usePlayback()
 
   const handleAudio = useCallback((buf: ArrayBuffer) => {
+    if (!acceptAudioRef.current) return // interrupted response — discard stray chunks
     if (phaseRef.current === 'thinking') setPhase('speaking')
     enqueue(buf)
   }, [enqueue])
@@ -43,13 +49,20 @@ export default function ConversePage({ params }: { params: { personaId: string }
       // speech_started/stopped only fire in hands-free (semantic_vad)
       case 'input_audio_buffer.speech_started': if (modeRef.current === 'hands_free') setPhase('listening'); break
       case 'input_audio_buffer.speech_stopped': if (modeRef.current === 'hands_free') setPhase('thinking'); break
-      case 'response.created': setPhase('thinking'); break
+      case 'response.created': acceptAudioRef.current = true; setPhase('thinking'); break
       case 'response.done':
       case 'response.audio.done': setPhase(modeRef.current === 'ptt' ? 'ready' : 'listening'); break
     }
   }, [])
 
   const { status, sendBinary, sendText } = useWebSocket(personaId, handleAudio, voice || undefined, handleEvent, mode)
+
+  // Stop the AI immediately: discard buffered audio, block stray chunks, tell server to cancel.
+  const interrupt = useCallback(() => {
+    acceptAudioRef.current = false
+    flush()
+    sendText({ type: 'barge_in' })
+  }, [flush, sendText])
 
   const handleMicChunk = useCallback((buf: ArrayBuffer) => {
     // mic level for the orb (always)
@@ -68,12 +81,11 @@ export default function ConversePage({ params }: { params: { personaId: string }
     sendBinary(buf)
     if (micLevelRef.current > VAD_LEVEL && phaseRef.current === 'speaking' && !bargeLockRef.current) {
       bargeLockRef.current = true
-      flush()
-      sendText({ type: 'barge_in' })
+      interrupt()
       setPhase('listening')
     }
     if (phaseRef.current !== 'speaking') bargeLockRef.current = false
-  }, [sendBinary, flush, sendText])
+  }, [sendBinary, interrupt])
 
   const { start: startMic, stop: stopMic, error: micError } = useMicCapture(handleMicChunk)
 
@@ -82,11 +94,12 @@ export default function ConversePage({ params }: { params: { personaId: string }
     if (modeRef.current !== 'ptt') return
     if (!['ready', 'listening', 'thinking', 'speaking'].includes(phaseRef.current)) return
     if (holdingRef.current) return
-    if (phaseRef.current === 'speaking') { flush(); sendText({ type: 'barge_in' }) } // interrupt
+    // Interrupt a reply that's playing OR still being generated.
+    if (phaseRef.current === 'speaking' || phaseRef.current === 'thinking') interrupt()
     holdingRef.current = true
     setHolding(true)
     setPhase('listening')
-  }, [flush, sendText])
+  }, [interrupt])
 
   const release = useCallback(() => {
     if (!holdingRef.current) return
@@ -169,22 +182,33 @@ export default function ConversePage({ params }: { params: { personaId: string }
   const active = ['ready', 'listening', 'thinking', 'speaking'].includes(phase)
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-black px-6">
-      <Link href="/" className="absolute left-5 top-5 text-sm text-white/40 hover:text-white">← Back</Link>
+    <main className="grain relative flex min-h-screen flex-col overflow-hidden bg-[var(--bg)] text-[var(--text)]">
+      <AppNav />
+      {/* state-tinted ambient glow behind the orb */}
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/2 -z-0 h-[560px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-50 blur-[130px] transition-colors duration-1000"
+        style={{
+          background:
+            phase === 'speaking' ? 'radial-gradient(circle, rgba(232,161,60,0.30), transparent 70%)'
+            : phase === 'thinking' ? 'radial-gradient(circle, rgba(138,123,216,0.28), transparent 70%)'
+            : phase === 'listening' ? 'radial-gradient(circle, rgba(111,168,199,0.28), transparent 70%)'
+            : 'radial-gradient(circle, rgba(111,168,199,0.10), transparent 70%)',
+        }}
+      />
 
-      <div className="flex w-full max-w-sm flex-col items-center gap-8">
+      <div className="relative flex w-full flex-1 flex-col items-center justify-center gap-8 px-6 pb-10">
         <div className="text-center">
-          <p className="mb-1 text-xs uppercase tracking-widest text-white/30">Talking to</p>
-          <h1 className="text-3xl font-bold text-white">{personaName}</h1>
+          <p className="kicker mb-2">Talking to</p>
+          <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-light tracking-[-0.01em]">{personaName}</h1>
         </div>
 
-        <div className="h-64 w-64">
+        <div className="h-64 w-64 animate-float-slow">
           <VoicePoweredOrb state={orbState} getLevel={getLevel} />
         </div>
 
-        <p className="h-5 text-sm text-white/60">{statusText()}</p>
+        <p className="h-5 text-sm text-[var(--text-dim)]">{statusText()}</p>
 
-        {micError && <p className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-300">{micError}</p>}
+        {micError && <p className="rounded-xl border border-[#c8542a]/30 bg-[#c8542a]/10 px-4 py-3 text-sm text-[var(--accent-soft)]">{micError}</p>}
 
         {/* Pre-start: mode toggle, voice picker, Start */}
         {phase === 'idle' && (
@@ -192,36 +216,25 @@ export default function ConversePage({ params }: { params: { personaId: string }
             <div className="flex gap-2">
               {(['ptt', 'hands_free'] as Mode[]).map((m) => (
                 <button key={m} onClick={() => setMode(m)}
-                  className={`rounded-lg border px-4 py-2 text-sm transition ${
-                    mode === m ? 'border-white/40 bg-white/10 text-white' : 'border-white/10 text-white/50 hover:text-white'
+                  className={`rounded-xl border px-4 py-2 text-sm transition ${
+                    mode === m ? 'border-[#FF5C39]/50 bg-[#FF5C39]/10 text-[var(--text)]' : 'border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--line)] hover:text-[var(--text)]'
                   }`}>
                   {m === 'ptt' ? 'Push to talk' : 'Hands-free'}
                 </button>
               ))}
             </div>
             {mode === 'hands_free' && (
-              <p className="-mt-4 text-xs text-amber-400/70">Experimental — use headphones</p>
+              <p className="-mt-4 text-xs text-[#FF5C39]/80">Experimental — use headphones</p>
             )}
 
             {!isCustom && voices.length > 0 && (
-              <label className="flex flex-col items-center gap-2">
-                <span className="text-xs uppercase tracking-widest text-white/30">Voice</span>
-                <select value={voice} onChange={(e) => setVoice(e.target.value)}
-                  className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-center text-white focus:border-white/40 focus:outline-none">
-                  <option value="">Default</option>
-                  <optgroup label="Male">
-                    {voices.filter((v) => v.gender === 'male').map((v) => <option key={v.id} value={v.id}>{v.id}</option>)}
-                  </optgroup>
-                  <optgroup label="Female">
-                    {voices.filter((v) => v.gender === 'female').map((v) => <option key={v.id} value={v.id}>{v.id}</option>)}
-                  </optgroup>
-                </select>
-              </label>
+              <VoicePicker voices={voices} value={voice} onChange={setVoice} />
             )}
 
             <button onClick={handleStart}
-              className="rounded-full bg-white px-10 py-4 text-lg font-semibold text-black transition hover:bg-white/90">
-              Start Conversation
+              className="group inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-10 py-4 text-lg font-semibold text-[var(--bg)]
+                         shadow-[0_0_44px_-10px_rgba(232,161,60,0.65)] transition hover:bg-[var(--accent-soft)]">
+              Start conversation <span className="transition-transform group-hover:translate-x-1">→</span>
             </button>
           </>
         )}
@@ -233,7 +246,9 @@ export default function ConversePage({ params }: { params: { personaId: string }
             onPointerUp={(e) => { e.preventDefault(); release() }}
             onPointerLeave={() => release()}
             className={`select-none rounded-full px-12 py-5 text-lg font-semibold transition ${
-              holding ? 'bg-sky-400 text-black scale-105' : 'bg-white text-black hover:bg-white/90'
+              holding
+                ? 'scale-105 bg-[#6fa8c7] text-[var(--bg)] shadow-[0_0_44px_-8px_rgba(111,168,199,0.8)]'
+                : 'bg-[var(--text)] text-[var(--bg)] hover:bg-white'
             }`}
           >
             {holding ? 'Listening…' : 'Hold to talk'}
@@ -242,13 +257,13 @@ export default function ConversePage({ params }: { params: { personaId: string }
 
         {active && (
           <button onClick={handleStop}
-            className="rounded-full border border-red-500/40 px-8 py-2 text-sm text-red-300/80 transition hover:bg-red-500/20">
+            className="rounded-full border border-[#c8542a]/40 px-8 py-2 text-sm text-[#f0a987]/80 transition hover:bg-[#c8542a]/15">
             End
           </button>
         )}
 
         {phase === 'stopped' && (
-          <Link href="/" className="rounded-full border border-white/20 px-8 py-3 text-sm text-white/70 hover:border-white/40 hover:text-white">
+          <Link href="/app" className="rounded-full border border-[var(--line)] px-8 py-3 text-sm text-[var(--text-dim)] transition hover:border-[var(--line)] hover:text-[var(--text)]">
             ← Back to personas
           </Link>
         )}

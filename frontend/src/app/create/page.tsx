@@ -1,11 +1,11 @@
 'use client'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useMicCapture } from '@/hooks/useMicCapture'
 import { encodeWav } from '@/lib/wavEncoder'
 import { trimToWav } from '@/lib/audioTrim'
 import { getSessionId } from '@/lib/session'
+import { AppNav } from '@/components/AppNav'
 import { API_BASE, MAX_CLIP_SEC, MAX_UPLOAD_BYTES } from '@/lib/constants'
 
 type VoiceMode = 'upload' | 'record'
@@ -111,54 +111,64 @@ export default function CreatePersona() {
   }, [voiceBlob, name, instructions, router])
 
   return (
-    <main className="min-h-screen bg-black px-6 py-12">
-      <div className="mx-auto flex max-w-lg flex-col gap-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">Create a persona</h1>
-          <Link href="/" className="text-sm text-white/40 hover:text-white">← Back</Link>
+    <main className="grain relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
+      <AppNav />
+      <div
+        className="pointer-events-none absolute left-1/2 top-0 -z-0 h-[460px] w-[640px] -translate-x-1/2 opacity-35 blur-[120px]"
+        style={{ background: "radial-gradient(circle, rgba(138,123,216,0.20) 0%, transparent 70%)" }}
+      />
+
+      <div className="relative mx-auto flex max-w-lg flex-col gap-8 px-6 py-14">
+        <div>
+          <p className="kicker mb-3">New persona</p>
+          <h1 className="font-display text-[clamp(1.9rem,4vw,2.6rem)] font-light leading-none tracking-[-0.01em]">
+            Build your own.
+          </h1>
         </div>
 
         {/* Name */}
         <label className="flex flex-col gap-2">
-          <span className="text-sm text-white/60">Name</span>
+          <span className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--text-faint)]">Name</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="My manager"
-            className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white
-                       placeholder:text-white/25 focus:border-white/40 focus:outline-none"
+            className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--text)]
+                       placeholder:text-[var(--text-faint)] transition focus:border-[#FF5C39]/50 focus:outline-none"
           />
         </label>
 
         {/* Instructions */}
         <label className="flex flex-col gap-2">
-          <span className="text-sm text-white/60">How should they behave?</span>
+          <span className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--text-faint)]">How should they behave?</span>
           <textarea
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             rows={4}
             placeholder="You are my skeptical manager. You interrupt, challenge my ideas, and rarely give praise. Keep replies short."
-            className="resize-none rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white
-                       placeholder:text-white/25 focus:border-white/40 focus:outline-none"
+            className="resize-none rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--text)]
+                       placeholder:text-[var(--text-faint)] transition focus:border-[#FF5C39]/50 focus:outline-none"
           />
-          <span className="text-xs text-white/30">
+          <span className="text-xs text-[var(--text-faint)]">
             Be specific and forceful — &ldquo;be rude, interrupt, mock me&rdquo; works better than &ldquo;be a bit tough.&rdquo;
           </span>
         </label>
 
         {/* Voice */}
         <div className="flex flex-col gap-3">
-          <span className="text-sm text-white/60">Voice <span className="text-white/30">(10–20s of clear speech is ideal)</span></span>
+          <span className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--text-faint)]">
+            Voice <span className="text-[var(--line)]">· 10–20s of clear speech is ideal</span>
+          </span>
 
           <div className="flex gap-2">
             {(['upload', 'record'] as VoiceMode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setBlob(null); setError(null) }}
-                className={`flex-1 rounded-lg border px-4 py-2 text-sm transition ${
+                className={`flex-1 rounded-xl border px-4 py-2.5 text-sm transition ${
                   mode === m
-                    ? 'border-white/40 bg-white/10 text-white'
-                    : 'border-white/10 text-white/50 hover:text-white'
+                    ? 'border-[#FF5C39]/50 bg-[#FF5C39]/10 text-[var(--text)]'
+                    : 'border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--line)] hover:text-[var(--text)]'
                 }`}
               >
                 {m === 'upload' ? 'Upload file' : 'Record'}
@@ -172,10 +182,10 @@ export default function CreatePersona() {
                 type="file"
                 accept="audio/wav,audio/mpeg,audio/mp4,audio/x-m4a"
                 onChange={(e) => handleUpload(e.target.files?.[0])}
-                className="text-sm text-white/60 file:mr-4 file:rounded-lg file:border-0
-                           file:bg-white/10 file:px-4 file:py-2 file:text-white hover:file:bg-white/20"
+                className="text-sm text-[var(--text-dim)] file:mr-4 file:rounded-lg file:border-0
+                           file:bg-[var(--line)] file:px-4 file:py-2 file:text-[var(--text)] hover:file:bg-[var(--line)]"
               />
-              {processing && <p className="text-xs text-white/40">Processing… (trimming to {MAX_CLIP_SEC}s)</p>}
+              {processing && <p className="text-xs text-[var(--text-dim)]">Processing… (trimming to {MAX_CLIP_SEC}s)</p>}
               {voiceBlob && !processing && previewUrl && (
                 <audio controls src={previewUrl} className="w-full" />
               )}
@@ -187,41 +197,42 @@ export default function CreatePersona() {
               {!isCapturing ? (
                 <button
                   onClick={startRecording}
-                  className="rounded-lg border border-white/20 px-4 py-3 text-sm text-white hover:bg-white/10"
+                  className="rounded-xl border border-[var(--line)] px-4 py-3 text-sm text-[var(--text)] transition hover:border-[var(--line)] hover:bg-[var(--surface)]"
                 >
-                  {voiceBlob ? 'Re-record' : '● Start recording'}
+                  {voiceBlob ? '↺ Re-record' : '● Start recording'}
                 </button>
               ) : (
                 <button
                   onClick={finishRecording}
-                  className="rounded-lg border border-red-500/50 bg-red-500/20 px-4 py-3 text-sm
-                             text-red-300 hover:bg-red-500/30"
+                  className="rounded-xl border border-[#c8542a]/50 bg-[#c8542a]/15 px-4 py-3 text-sm
+                             text-[var(--accent-soft)] transition hover:bg-[#c8542a]/25"
                 >
                   ■ Stop recording · {recordSec}s / {MAX_CLIP_SEC}s
                 </button>
               )}
               {isCapturing && (
-                <p className="text-xs text-white/40">Speak naturally for 10–20 seconds. Auto-stops at {MAX_CLIP_SEC}s.</p>
+                <p className="text-xs text-[var(--text-dim)]">Speak naturally for 10–20 seconds. Auto-stops at {MAX_CLIP_SEC}s.</p>
               )}
               {previewUrl && !isCapturing && (
                 <audio controls src={previewUrl} className="w-full" />
               )}
-              {micError && <p className="text-xs text-red-400">{micError}</p>}
+              {micError && <p className="text-xs text-[var(--accent-soft)]">{micError}</p>}
             </div>
           )}
         </div>
 
         {error && (
-          <p className="rounded-lg bg-red-500/20 px-4 py-3 text-sm text-red-300">{error}</p>
+          <p className="rounded-xl border border-[#c8542a]/30 bg-[#c8542a]/10 px-4 py-3 text-sm text-[var(--accent-soft)]">{error}</p>
         )}
 
         <button
           onClick={handleSubmit}
           disabled={!canSubmit}
-          className="rounded-full bg-white px-8 py-4 font-semibold text-black transition
-                     hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-30"
+          className="group inline-flex items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-8 py-4 font-semibold text-[var(--bg)]
+                     shadow-[0_0_40px_-10px_rgba(232,161,60,0.6)] transition hover:bg-[var(--accent-soft)]
+                     disabled:cursor-not-allowed disabled:opacity-25 disabled:shadow-none"
         >
-          {submitting ? 'Creating voice… (~5s)' : 'Create persona'}
+          {submitting ? 'Creating voice… (~5s)' : <>Create persona <span className="transition-transform group-hover:translate-x-1">→</span></>}
         </button>
       </div>
     </main>

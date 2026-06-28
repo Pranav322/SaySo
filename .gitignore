@@ -13,3 +13,6 @@ wheels/
 .claude/MEMORY.md
 .claude/
 .env
+
+# Runtime data
+*.db

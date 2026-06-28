@@ -88,5 +88,6 @@ class OmniSession:
                 yield ("event", event_type)
 
             elif event_type == "error":
-                log.error("Omni error event: %s", event)
-                raise RuntimeError(f"Omni error: {event}")
+                # Don't kill the session — a stray error (e.g. cancel with no active
+                # response during barge-in) shouldn't end the conversation. Just log it.
+                log.warning("Omni error event: %s", event)
