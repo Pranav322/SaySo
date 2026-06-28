@@ -50,6 +50,11 @@ def resolve_persona(persona_id: str) -> dict | None:
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
 
 
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
 @app.get("/voices")
 def list_voices():
     return VOICES

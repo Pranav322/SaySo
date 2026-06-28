@@ -1,0 +1,14 @@
+frontend
+.venv
+.git
+.github
+.claude
+tests
+*.wav
+**/__pycache__
+*.db
+.env
+*.py[oc]
+README.md
+gen_voice_samples.py
+test_*.py

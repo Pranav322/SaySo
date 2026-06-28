@@ -1,65 +1,64 @@
 import os
-import sqlite3
 import uuid
-from datetime import datetime, timezone
+from psycopg_pool import ConnectionPool
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "personas.db")
+# Postgres-backed persona store (DigitalOcean Managed Postgres in prod).
+# Connection comes from DATABASE_URL (DO injects it on App Platform; set it in .env locally).
+_pool: ConnectionPool | None = None
 
 
-def _conn():
-    return sqlite3.connect(DB_PATH)
+def _pool_() -> ConnectionPool:
+    global _pool
+    if _pool is None:
+        dsn = os.environ.get("DATABASE_URL")
+        if not dsn:
+            raise RuntimeError("DATABASE_URL is not set — point it at your Postgres cluster.")
+        _pool = ConnectionPool(dsn, min_size=1, max_size=5, kwargs={"autocommit": True})
+    return _pool
 
 
 def init_db():
-    with _conn() as c:
+    with _pool_().connection() as c:
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS personas (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
+                id           TEXT PRIMARY KEY,
+                name         TEXT NOT NULL,
                 instructions TEXT NOT NULL,
-                voice_id TEXT NOT NULL,
-                session_id TEXT,
-                created_at TEXT NOT NULL
+                voice_id     TEXT NOT NULL,
+                session_id   TEXT,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             )
             """
         )
-        # Migrate older DBs that predate the session_id column.
-        cols = {r[1] for r in c.execute("PRAGMA table_info(personas)").fetchall()}
-        if "session_id" not in cols:
-            c.execute("ALTER TABLE personas ADD COLUMN session_id TEXT")
+        c.execute("CREATE INDEX IF NOT EXISTS personas_session_idx ON personas (session_id)")
 
 
 def add_persona(name: str, instructions: str, voice_id: str, session_id: str) -> str:
     persona_id = f"custom_{uuid.uuid4().hex[:8]}"
-    created_at = datetime.now(timezone.utc).isoformat()
-    with _conn() as c:
+    with _pool_().connection() as c:
         c.execute(
-            "INSERT INTO personas (id, name, instructions, voice_id, session_id, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (persona_id, name, instructions, voice_id, session_id, created_at),
+            "INSERT INTO personas (id, name, instructions, voice_id, session_id) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (persona_id, name, instructions, voice_id, session_id),
         )
     return persona_id
 
 
 def list_personas(session_id: str) -> list[dict]:
-    with _conn() as c:
+    with _pool_().connection() as c:
         rows = c.execute(
             "SELECT id, name, instructions, voice_id FROM personas "
-            "WHERE session_id = ? ORDER BY created_at DESC",
+            "WHERE session_id = %s ORDER BY created_at DESC",
             (session_id,),
         ).fetchall()
-    return [
-        {"id": r[0], "name": r[1], "instructions": r[2], "voice_id": r[3]}
-        for r in rows
-    ]
+    return [{"id": r[0], "name": r[1], "instructions": r[2], "voice_id": r[3]} for r in rows]
 
 
 def get_persona(persona_id: str) -> dict | None:
-    """Look up by id alone (used by the WS endpoint, which already has the id)."""
-    with _conn() as c:
+    with _pool_().connection() as c:
         row = c.execute(
-            "SELECT id, name, instructions, voice_id, session_id FROM personas WHERE id = ?",
+            "SELECT id, name, instructions, voice_id, session_id FROM personas WHERE id = %s",
             (persona_id,),
         ).fetchone()
     if not row:
@@ -68,9 +67,9 @@ def get_persona(persona_id: str) -> dict | None:
 
 
 def delete_persona(persona_id: str, session_id: str) -> bool:
-    with _conn() as c:
+    with _pool_().connection() as c:
         cur = c.execute(
-            "DELETE FROM personas WHERE id = ? AND session_id = ?",
+            "DELETE FROM personas WHERE id = %s AND session_id = %s",
             (persona_id, session_id),
         )
         return cur.rowcount > 0
