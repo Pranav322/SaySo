@@ -99,6 +99,15 @@ def delete_persona(persona_id: str, session_id: str) -> bool:
         return cur.rowcount > 0
 
 
+def update_persona(persona_id: str, session_id: str, name: str, instructions: str) -> bool:
+    with _pool_().connection() as c:
+        cur = c.execute(
+            "UPDATE personas SET name=%s, instructions=%s WHERE id=%s AND session_id=%s",
+            (name, instructions, persona_id, session_id),
+        )
+        return cur.rowcount > 0
+
+
 # ---- Conversation transcripts (text only) ----
 
 def save_conversation(session_id: str, persona_id: str, persona_name: str, turns: list[dict]) -> str:

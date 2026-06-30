@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PersonaCard } from '@/components/PersonaCard'
-import { AppNav } from '@/components/AppNav'
+import { EditPersonaModal } from '@/components/EditPersonaModal'
 import { API_BASE } from '@/lib/constants'
 import { getSessionId } from '@/lib/session'
 
@@ -12,6 +12,7 @@ export default function AppHome() {
   const [personas, setPersonas] = useState<Persona[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`${API_BASE}/personas`, { headers: { 'X-Session-Id': getSessionId() } })
@@ -28,9 +29,19 @@ export default function AppHome() {
     if (resp.ok) setPersonas((prev) => prev.filter((p) => p.id !== id))
   }
 
+  const handleEdit = (id: string) => {
+    setEditingId(id)
+  }
+
+  const handleSave = (updated: { id: string; name: string }) => {
+    setPersonas((prev) =>
+      prev.map((p) => (p.id === updated.id ? { ...p, name: updated.name } : p))
+    )
+    setEditingId(null)
+  }
+
   return (
-    <main className="grain relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
-      <AppNav />
+    <main className="grain relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)] pt-16">
       {/* atmospheric glow */}
       <div
         className="pointer-events-none absolute left-1/2 top-0 -z-0 h-[480px] w-[680px] -translate-x-1/2 opacity-40 blur-[120px]"
@@ -57,10 +68,11 @@ export default function AppHome() {
         )}
 
         {!loading && !error && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {personas.map((p) => (
-              <PersonaCard key={p.id} id={p.id} name={p.name} custom={p.custom} onDelete={handleDelete} />
-            ))}
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {personas.map((p) => (
+                <PersonaCard key={p.id} id={p.id} name={p.name} custom={p.custom} onDelete={handleDelete} onEdit={handleEdit} />
+              ))}
             <Link
               href="/create"
               className="group flex min-h-32 flex-col items-center justify-center gap-2 rounded-2xl border
@@ -70,7 +82,13 @@ export default function AppHome() {
               <span className="font-display text-3xl transition-transform group-hover:scale-110">+</span>
               <span className="text-sm">Create persona</span>
             </Link>
-          </div>
+            </div>
+            <EditPersonaModal
+              personaId={editingId}
+              onClose={() => setEditingId(null)}
+              onSave={handleSave}
+            />
+          </>
         )}
       </div>
     </main>

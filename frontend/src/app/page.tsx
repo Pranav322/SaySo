@@ -133,30 +133,6 @@ export default function Landing() {
 
   return (
     <main ref={root} className="grain relative min-h-screen overflow-x-hidden bg-[var(--bg)] text-[var(--text)]">
-      {/* ====================== NAV ====================== */}
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-[var(--line)] bg-[var(--bg-blur)] backdrop-blur-xl">
-        <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="group flex items-center gap-2.5">
-            <VoiceprintMark size={26} />
-            <span className="font-display text-xl tracking-tight">Sayso</span>
-          </Link>
-          <div className="hidden items-center gap-9 text-sm text-[var(--text-dim)] md:flex">
-            <a href="#how" className="transition hover:text-[var(--text)]">How it works</a>
-            <a href="#personas" className="transition hover:text-[var(--text)]">Personas</a>
-            <a href="#pricing" className="transition hover:text-[var(--text)]">Pricing</a>
-          </div>
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <Link
-              href="/app"
-              className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--on-accent)] transition hover:bg-[var(--accent-deep)]"
-            >
-              Open app
-            </Link>
-          </div>
-        </nav>
-      </header>
-
       {/* ====================== HERO ====================== */}
       <section className="relative mx-auto flex max-w-6xl flex-col items-center px-6 pb-24 pt-40 md:pt-48">
         {/* atmospheric glow */}
@@ -408,64 +384,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ====================== PRICING ====================== */}
-      <section id="pricing" className="mx-auto max-w-6xl px-6 py-28">
-        <div className="mb-14 text-center">
-          <p data-reveal className="kicker mb-5">Pricing</p>
-          <h2 data-reveal style={delay(80)} className="font-display text-[clamp(2rem,4vw,3.2rem)] font-light leading-[1.05] tracking-[-0.01em]">
-            Start free. Stay as long as it&apos;s scary.
-          </h2>
-        </div>
-        <div className="grid gap-5 md:grid-cols-3">
-          {/* Free */}
-          <div data-reveal className="flex flex-col rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-8">
-            <h3 className="font-display text-2xl">Warm-up</h3>
-            <p className="mt-1 text-sm text-[var(--text-dim)]">For your first few reps.</p>
-            <div className="mt-6 font-display text-4xl font-light">$0</div>
-            <ul className="mt-6 space-y-3 text-sm text-[var(--text-dim)]">
-              <li>· 5 preset personas</li>
-              <li>· 20 minutes of practice / week</li>
-              <li>· Real-time voice</li>
-            </ul>
-            <Link href="/app" className="mt-8 rounded-full border border-[var(--line)] py-3 text-center text-sm font-medium transition hover:border-[var(--text-faint)]">
-              Start free
-            </Link>
-          </div>
-
-          {/* Pro — featured */}
-          <div data-reveal style={delay(110)} className="relative flex flex-col rounded-2xl border border-[#FF5C39]/40 bg-gradient-to-b from-[var(--surface)] to-[var(--surface)] p-8 shadow-[0_0_60px_-20px_rgba(232,161,60,0.5)]">
-            <span className="absolute -top-3 left-8 rounded-full bg-[var(--accent)] px-3 py-1 font-mono text-[0.6rem] font-semibold tracking-wider text-[var(--bg)]">MOST PICKED</span>
-            <h3 className="font-display text-2xl">Pro</h3>
-            <p className="mt-1 text-sm text-[var(--text-dim)]">For the week before the thing.</p>
-            <div className="mt-6 font-display text-4xl font-light">$19<span className="text-base text-[var(--text-faint)]">/mo</span></div>
-            <ul className="mt-6 space-y-3 text-sm text-[var(--text-dim)]">
-              <li>· Unlimited practice</li>
-              <li>· Custom personas + voice cloning</li>
-              <li>· Persona memory across sessions</li>
-              <li>· Priority low-latency model</li>
-            </ul>
-            <Link href="/app" className="mt-8 rounded-full bg-[var(--accent)] py-3 text-center text-sm font-semibold text-[var(--bg)] transition hover:bg-[var(--accent-soft)]">
-              Go Pro
-            </Link>
-          </div>
-
-          {/* Teams */}
-          <div data-reveal style={delay(220)} className="flex flex-col rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-8">
-            <h3 className="font-display text-2xl">Teams</h3>
-            <p className="mt-1 text-sm text-[var(--text-dim)]">For coaches and communities.</p>
-            <div className="mt-6 font-display text-4xl font-light">Let&apos;s talk</div>
-            <ul className="mt-6 space-y-3 text-sm text-[var(--text-dim)]">
-              <li>· Everything in Pro</li>
-              <li>· Shared persona libraries</li>
-              <li>· Scenario templates</li>
-              <li>· SSO &amp; admin controls</li>
-            </ul>
-            <Link href="/app" className="mt-8 rounded-full border border-[var(--line)] py-3 text-center text-sm font-medium transition hover:border-[var(--text-faint)]">
-              Contact us
-            </Link>
-          </div>
-        </div>
-      </section>
 
       {/* ====================== FAQ ====================== */}
       <section className="mx-auto max-w-3xl px-6 py-28">
@@ -521,7 +439,6 @@ export default function Landing() {
           <p className="font-mono text-xs tracking-wide">Practice the conversation. Then have it.</p>
           <div className="flex gap-6">
             <a href="#how" className="transition hover:text-[var(--text)]">How it works</a>
-            <a href="#pricing" className="transition hover:text-[var(--text)]">Pricing</a>
             <Link href="/app" className="transition hover:text-[var(--text)]">Open app</Link>
           </div>
         </div>

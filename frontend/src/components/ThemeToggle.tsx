@@ -8,15 +8,30 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
 
   // Sync with whatever the no-flash boot script already set on <html>.
   useEffect(() => {
-    const current = (document.documentElement.dataset.theme as Theme) || 'light'
+    let current = (document.documentElement.dataset.theme as Theme) || null
+    if (!current) {
+      // Fallback: check system preference if not set in boot script
+      current = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    }
     setTheme(current)
+  }, [])
+
+  useEffect(() => {
+    // Migrate old theme key to new one (single-time migration)
+    try {
+      const old = localStorage.getItem('sayso_theme')
+      if (old && !localStorage.getItem('sayso_theme_v2')) {
+        localStorage.setItem('sayso_theme_v2', old)
+        localStorage.removeItem('sayso_theme')
+      }
+    } catch { /* ignore */ }
   }, [])
 
   const toggle = () => {
     const next: Theme = theme === 'light' ? 'dark' : 'light'
     setTheme(next)
     document.documentElement.dataset.theme = next
-    try { localStorage.setItem('sayso_theme', next) } catch { /* ignore */ }
+    try { localStorage.setItem('sayso_theme_v2', next) } catch { /* ignore */ }
   }
 
   return (

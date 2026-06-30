@@ -23,9 +23,10 @@ interface Props {
   name: string
   custom?: boolean
   onDelete?: (id: string) => void
+  onEdit?: (id: string) => void
 }
 
-export function PersonaCard({ id, name, custom, onDelete }: Props) {
+export function PersonaCard({ id, name, custom, onDelete, onEdit }: Props) {
   const router = useRouter()
   const tint = custom ? '#e8a13c' : TINTS[id] ?? '#e8a13c'
   return (
@@ -50,15 +51,29 @@ export function PersonaCard({ id, name, custom, onDelete }: Props) {
         </span>
       </button>
 
-      {custom && onDelete && (
-        <button
-          onClick={() => onDelete(id)}
-          aria-label={`Delete ${name}`}
-          className="absolute right-3 top-3 z-10 rounded-full bg-[#0a0908]/60 px-2 py-0.5 text-[var(--text-faint)]
-                     opacity-0 transition hover:text-[var(--ember)] group-hover:opacity-100"
-        >
-          ✕
-        </button>
+      {custom && (onDelete || onEdit) && (
+        <div className="absolute right-3 top-3 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
+          {onEdit && (
+            <button
+              onClick={() => onEdit(id)}
+              aria-label={`Edit ${name}`}
+              className="rounded-full bg-[#0a0908]/60 px-2 py-0.5 text-[var(--text-faint)]
+                         transition hover:text-[var(--accent)]"
+            >
+              ✎
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={() => onDelete(id)}
+              aria-label={`Delete ${name}`}
+              className="rounded-full bg-[#0a0908]/60 px-2 py-0.5 text-[var(--text-faint)]
+                         transition hover:text-[var(--ember)]"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

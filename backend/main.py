@@ -102,6 +102,30 @@ async def create_persona(
     return {"id": persona_id, "name": name, "custom": True}
 
 
+@app.get("/personas/{persona_id}")
+def get_persona(persona_id: str, x_session_id: str = Header(default="")):
+    custom = store.get_persona(persona_id)
+    if not custom or custom["session_id"] != x_session_id:
+        raise HTTPException(404, "Persona not found.")
+    return {"id": custom["id"], "name": custom["name"], "instructions": custom["instructions"]}
+
+
+@app.patch("/personas/{persona_id}")
+def update_persona_route(persona_id: str, body: dict, x_session_id: str = Header(default="")):
+    if persona_id in PERSONAS:
+        raise HTTPException(403, "Cannot edit a preset persona.")
+    custom = store.get_persona(persona_id)
+    if not custom or custom["session_id"] != x_session_id:
+        raise HTTPException(403, "Not your persona.")
+    name = body.get("name", "").strip()
+    instructions = body.get("instructions", "").strip()
+    if not name or not instructions:
+        raise HTTPException(400, "Name and instructions are required.")
+    if not store.update_persona(persona_id, x_session_id, name, instructions):
+        raise HTTPException(500, "Update failed.")
+    return {"id": persona_id, "name": name, "instructions": instructions}
+
+
 @app.delete("/personas/{persona_id}")
 def delete_persona(persona_id: str, x_session_id: str = Header(default="")):
     if persona_id in PERSONAS:

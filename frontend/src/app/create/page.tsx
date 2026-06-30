@@ -5,7 +5,6 @@ import { useMicCapture } from '@/hooks/useMicCapture'
 import { encodeWav } from '@/lib/wavEncoder'
 import { trimToWav } from '@/lib/audioTrim'
 import { getSessionId } from '@/lib/session'
-import { AppNav } from '@/components/AppNav'
 import { API_BASE, MAX_CLIP_SEC, MAX_UPLOAD_BYTES } from '@/lib/constants'
 
 type VoiceMode = 'upload' | 'record'
@@ -111,8 +110,7 @@ export default function CreatePersona() {
   }, [voiceBlob, name, instructions, router])
 
   return (
-    <main className="grain relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
-      <AppNav />
+    <main className="grain relative min-h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)] pt-16">
       <div
         className="pointer-events-none absolute left-1/2 top-0 -z-0 h-[460px] w-[640px] -translate-x-1/2 opacity-35 blur-[120px]"
         style={{ background: "radial-gradient(circle, rgba(138,123,216,0.20) 0%, transparent 70%)" }}

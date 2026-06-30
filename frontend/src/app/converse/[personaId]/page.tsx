@@ -6,7 +6,6 @@ import { useMicCapture } from '@/hooks/useMicCapture'
 import { usePlayback } from '@/hooks/usePlayback'
 import { VoicePoweredOrb, OrbState } from '@/components/ui/voice-powered-orb'
 import { VoicePicker } from '@/components/VoicePicker'
-import { AppNav } from '@/components/AppNav'
 import { API_BASE } from '@/lib/constants'
 import { getSessionId } from '@/lib/session'
 
@@ -182,8 +181,7 @@ export default function ConversePage({ params }: { params: { personaId: string }
   const active = ['ready', 'listening', 'thinking', 'speaking'].includes(phase)
 
   return (
-    <main className="grain relative flex min-h-screen flex-col overflow-hidden bg-[var(--bg)] text-[var(--text)]">
-      <AppNav />
+    <main className="grain relative flex min-h-screen flex-col overflow-hidden bg-[var(--bg)] text-[var(--text)] pt-16">
       {/* state-tinted ambient glow behind the orb */}
       <div
         className="pointer-events-none absolute left-1/2 top-1/2 -z-0 h-[560px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-50 blur-[130px] transition-colors duration-1000"

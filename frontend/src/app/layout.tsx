@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Fraunces } from "next/font/google";
+import { SharedNav } from "@/components/SharedNav";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -61,17 +62,18 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Set theme before paint to avoid a flash on reload. */}
+        {/* Set theme before paint to avoid a flash on reload. Check stored pref, then system, then light. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{document.documentElement.dataset.theme=localStorage.getItem('sayso_theme')||'light'}catch(e){document.documentElement.dataset.theme='light'}",
+              "try{let t=localStorage.getItem('sayso_theme_v2');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='light'}",
           }}
         />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} antialiased`}
       >
+        <SharedNav />
         {children}
       </body>
     </html>
